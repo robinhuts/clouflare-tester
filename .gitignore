@@ -1,0 +1,37 @@
+# Cloudflare IP Tester - Ignore files
+
+# Xray binary directory
+xray/
+!xray/.gitkeep
+
+# Results directory
+results/
+!results/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+
+# Test configs
+test_config.json
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# User config files
+config.json
+ips.txt

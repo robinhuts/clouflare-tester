@@ -1,0 +1,15 @@
+{
+  "ip_range": "104.16.0.0/24",
+  "sni": "cloudflare.com",
+  "port": 443,
+  "protocol": "vless",
+  "timeout": 5,
+  "concurrent": 10,
+  "output_file": "results.json",
+  "_comment": "Zoom-style configuration (for zero-quota testing)",
+  "zoom_style": true,
+  "dns_domain": "api.ovo.id",
+  "use_domain_address": true,
+  "_comment2": "Server URL (RECOMMENDED - use your real vless/vmess/trojan server)",
+  "server_url": "vless://UUID@SERVER:443?type=ws&security=tls&sni=SERVER&path=/PATH"
+}
