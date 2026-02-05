@@ -216,7 +216,7 @@ def main():
     # Test connectivity first
     if not test_connectivity():
         print(f"\n{Fore.RED}Cannot proceed without proxy connection!")
-        print(f"{Fore.YELLOW}Start Xray with: .\\xray\\xray.exe run -c xray-zoom-config.json")
+        print(f"{Fore.YELLOW}Start Xray with: .\\xray\\xray.exe run -c xray-config.json")
         return 1
     
     # Run tests

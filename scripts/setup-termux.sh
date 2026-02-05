@@ -3,7 +3,7 @@
 # This script will set up all dependencies needed to run the tool on Termux
 
 echo "============================================"
-echo "CLOUDFLARE IP TESTER - TERMUX SETUP"
+echo " CLOUDFLARE IP TESTER - Bug/SNI Setup"
 echo "============================================"
 echo ""
 
@@ -26,10 +26,6 @@ pip install -r requirements.txt
 echo ""
 echo "[4/5] Making shell scripts executable..."
 chmod +x quick-test.sh
-chmod +x quick-test-zoom.sh
-chmod +x run-xray-direct.sh
-chmod +x run-xray-zoom.sh
-chmod +x xray-speedtest.sh
 
 # Test installation
 echo ""

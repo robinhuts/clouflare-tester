@@ -4,6 +4,7 @@ Cloudflare IP Tester with Xray - Interactive CLI
 Main application with interactive mode
 """
 import sys
+import os
 import time
 from pathlib import Path
 from colorama import Fore, Style, init
@@ -22,11 +23,17 @@ from domain_resolver import resolve_domain_to_cloudflare_ips
 init(autoreset=True)
 
 
+def clear_screen():
+    """Clear terminal screen"""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+
 def print_banner():
     """Print application banner"""
+    clear_screen()
     print(f"{Fore.CYAN}{Style.BRIGHT}")
     print("=" * 70)
-    print(" CLOUDFLARE IP TESTER - Zoom-Style Config Generator ".center(70))
+    print("      CLOUDFLARE IP TESTER - Bug/SNI Zero-Quota      ".center(70))
     print("=" * 70)
     print(f"{Style.RESET_ALL}\n")
 
@@ -173,61 +180,25 @@ def configure_server():
 
 def configure_zoom_style():
     """Configure zoom-style settings"""
+    clear_screen()
     print(f"\n{Fore.YELLOW}{'='*70}")
-    print(f"{Fore.YELLOW}ZOOM-STYLE CONFIGURATION")
+    print(f"{Fore.YELLOW}BUG/SNI CONFIGURATION")
     print(f"{Fore.YELLOW}{'='*70}\n")
     
-    print(f"{Fore.CYAN}Zoom-style uses DNS hosts mapping for optimal zero-quota testing")
-    use_zoom = get_yes_no("Enable zoom-style config?", "y")
+    use_zoom = get_yes_no("Enable Bug/SNI mode?", "y")
     
     if not use_zoom:
         return False, None, True, False, None
     
-    # Ask if want to test multiple domains
-    print(f"\n{Fore.CYAN}Test multiple free domains with each IP?")
-    print(f"{Fore.YELLOW}This will test each IP with different domains to find best combo")
-    print(f"{Fore.YELLOW}Example: Test IP with api.ovo.id, support.zoom.us, meet.google.com, etc.")
+    # Single Bug/SNI target input
+    dns_domain = get_input("Enter Bug/SNI target (e.g. api.ovo.id, support.zoom.us)", "api.ovo.id")
+    use_domain_address = get_yes_no("Use domain in address field?", "y")
     
-    multi_domain = get_yes_no("Enable multi-domain testing?", "n")
+    print(f"\n{Fore.GREEN}✓ Bug/SNI mode enabled:")
+    print(f"  Target: {dns_domain}")
+    print(f"  Domain in address: {use_domain_address}")
     
-    if multi_domain:
-        print(f"\n{Fore.CYAN}Common free domains:")
-        print(f"  1. api.ovo.id (Indonesia - OVO)")
-        print(f"  2. support.zoom.us (Zoom)")
-        print(f"  3. teams.microsoft.com (Microsoft Teams)")
-        print(f"  4. meet.google.com (Google Meet)")
-        print(f"  5. web.whatsapp.com (WhatsApp Web)")
-        print(f"  6. Custom domains...")
-        
-        use_defaults = get_yes_no("\nUse popular free domains? (recommended)", "y")
-        
-        if use_defaults:
-            domains = [
-                "api.ovo.id",
-                "support.zoom.us",
-                "teams.microsoft.com",
-                "meet.google.com"
-            ]
-        else:
-            domains_input = get_input("Enter domains separated by comma")
-            domains = [d.strip() for d in domains_input.split(',') if d.strip()]
-        
-        print(f"\n{Fore.GREEN}✓ Multi-domain testing enabled")
-        print(f"  Will test {len(domains)} domain(s) per IP:")
-        for d in domains:
-            print(f"    - {d}")
-        
-        return True, None, True, True, domains
-    else:
-        # Single domain
-        dns_domain = get_input("DNS domain for mapping", "api.ovo.id")
-        use_domain_address = get_yes_no("Use domain in address field? (recommended)", "y")
-        
-        print(f"\n{Fore.GREEN}✓ Zoom-style enabled:")
-        print(f"  DNS domain: {dns_domain}")
-        print(f"  Domain in address: {use_domain_address}")
-        
-        return True, dns_domain, use_domain_address, False, None
+    return True, dns_domain, use_domain_address, False, None
 
 
 def configure_test_params():
@@ -266,10 +237,7 @@ def confirm_and_run(config):
     
     print(f"{Fore.WHITE}IP Range: {Fore.GREEN}{config['ip_range_display']}")
     print(f"{Fore.WHITE}Server: {Fore.GREEN}{config['server_display']}")
-    print(f"{Fore.WHITE}Zoom-style: {Fore.GREEN}{config['zoom_style']}")
-    if config['zoom_style']:
-        print(f"{Fore.WHITE}  - DNS domain: {Fore.GREEN}{config['dns_domain']}")
-        print(f"{Fore.WHITE}  - Domain in address: {Fore.GREEN}{config['use_domain_address']}")
+    print(f"{Fore.WHITE}Bug/SNI Mode: {Fore.GREEN}{config['zoom_style']}")
     print(f"{Fore.WHITE}Timeout: {Fore.GREEN}{config['timeout']}s")
     print(f"{Fore.WHITE}Concurrent: {Fore.GREEN}{config['concurrent']}")
     
