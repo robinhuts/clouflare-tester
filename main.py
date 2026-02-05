@@ -64,11 +64,11 @@ def select_test_mode():
     print(f"{Fore.YELLOW}SELECT TESTING MODE")
     print(f"{Fore.YELLOW}{'='*70}\n")
     
-    print(f"{Fore.GREEN}1.{Fore.WHITE} Quick Test (Small IP range, ~5 minutes)")
-    print(f"{Fore.GREEN}2.{Fore.WHITE} Custom Range (Specify IP range)")
-    print(f"{Fore.GREEN}3.{Fore.WHITE} Test Domain/Subdomain (Find Cloudflare IPs for domain)")
-    print(f"{Fore.GREEN}4.{Fore.WHITE} From File (Load IPs from file)")
-    print(f"{Fore.GREEN}5.{Fore.WHITE} All Cloudflare Ranges (WARNING: Takes hours!)")
+    print(f"{Fore.GREEN}1.{Fore.WHITE} Quick Test (100 IPs - ~5 mins)")
+    print(f"{Fore.GREEN}2.{Fore.WHITE} Custom Range (e.g. 104.16.0.0/24)")
+    print(f"{Fore.GREEN}3.{Fore.WHITE} Domain Scan (Find IPs for specific domain)")
+    print(f"{Fore.GREEN}4.{Fore.WHITE} Load from File (cloudflare-ips.txt)")
+    print(f"{Fore.GREEN}5.{Fore.WHITE} ALL Ranges (Hours!)")
     
     choice = get_input("\nSelect mode [1-5]", "1", ["1", "2", "3", "4", "5"])
     
@@ -141,6 +141,7 @@ def select_test_mode():
 
 def configure_server():
     """Configure server settings"""
+    clear_screen()
     print(f"\n{Fore.YELLOW}{'='*70}")
     print(f"{Fore.YELLOW}SERVER CONFIGURATION")
     print(f"{Fore.YELLOW}{'='*70}\n")
@@ -231,6 +232,7 @@ def configure_zoom_style():
 
 def configure_test_params():
     """Configure test parameters"""
+    clear_screen()
     print(f"\n{Fore.YELLOW}{'='*70}")
     print(f"{Fore.YELLOW}TEST PARAMETERS")
     print(f"{Fore.YELLOW}{'='*70}\n")
@@ -257,6 +259,7 @@ def configure_test_params():
 
 def confirm_and_run(config):
     """Show summary and confirm before running"""
+    clear_screen()
     print(f"\n{Fore.CYAN}{'='*70}")
     print(f"{Fore.CYAN}TEST CONFIGURATION SUMMARY")
     print(f"{Fore.CYAN}{'='*70}\n")
@@ -281,6 +284,7 @@ def confirm_and_run(config):
 
 def run_test(config):
     """Execute the test"""
+    clear_screen()
     print(f"\n{Fore.CYAN}{'='*70}")
     print(f"{Fore.CYAN}STARTING TEST...")
     print(f"{Fore.CYAN}{'='*70}\n")

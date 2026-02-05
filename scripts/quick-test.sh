@@ -2,9 +2,9 @@
 # Quick Test Script for Cloudflare IP Tester (Termux/Linux)
 # Edit the VLESS_URL below with your actual vless URL
 
-echo "========================================"
-echo "Cloudflare IP Tester - Quick Start"
-echo "========================================"
+echo "============================================"
+echo " CLOUDFLARE IP TESTER - Bug/SNI Edition"
+echo "============================================"
 echo ""
 
 # Your vless URL here

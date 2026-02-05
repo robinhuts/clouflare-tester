@@ -2,13 +2,13 @@
 REM Quick Test Script for Cloudflare IP Tester
 REM Edit the VLESS_URL below with your actual vless URL
 
-echo ========================================
-echo Cloudflare IP Tester - Quick Start
-echo ========================================
+echo ============================================
+echo  CLOUDFLARE IP TESTER - Bug/SNI Edition
+echo ============================================
 echo.
 
 REM Your vless URL here
-set VLESS_URL=vless://4b70b98a-1b39-4d76-880a-243ba5c5e03b@point.natss.store:443?path=/vless^&security=tls^&encryption=none^&host=point.natss.store^&type=ws^&sni=point.natss.store#yamete09
+set VLESS_URL=vless://4b70b98a-1b39-4d76-880a-243ba5c50000@point.natss.store:443?path=/vless^&security=tls^&encryption=none^&host=point.natss.store^&type=ws^&sni=point.natss.store#yamete09
 
 echo Choose testing mode:
 echo.
