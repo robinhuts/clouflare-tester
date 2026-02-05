@@ -24,24 +24,24 @@ read -p "Enter choice (1-5): " choice
 case $choice in
     1)
         echo "Running: Quick Test (100 IPs)"
-        python main.py --server-url "$VLESS_URL" --range "104.16.0.1-100" --timeout 8 --concurrent 20
+        python ../main.py --server-url "$VLESS_URL" --range "104.16.0.1-100" --timeout 8 --concurrent 20
         ;;
     2)
         echo "Running: Medium Test (~250 IPs)"
-        python main.py --server-url "$VLESS_URL" --range "104.16.0.0/24" --timeout 8 --concurrent 30
+        python ../main.py --server-url "$VLESS_URL" --range "104.16.0.0/24" --timeout 8 --concurrent 30
         ;;
     3)
         echo "Running: Large Test (~65k IPs - This will take a while!)"
-        python main.py --server-url "$VLESS_URL" --range "104.16.0.0/16" --timeout 5 --concurrent 50
+        python ../main.py --server-url "$VLESS_URL" --range "104.16.0.0/16" --timeout 5 --concurrent 50
         ;;
     4)
         echo "Running: ALL Cloudflare IPs (This will take HOURS!)"
-        python main.py --server-url "$VLESS_URL" --range "@cloudflare-ips.txt" --timeout 5 --concurrent 100
+        python ../main.py --server-url "$VLESS_URL" --range "@cloudflare-ips.txt" --timeout 5 --concurrent 100
         ;;
     5)
         read -p "Enter IP range (e.g., 104.16.0.1-50): " custom_range
         echo "Running: Custom range - $custom_range"
-        python main.py --server-url "$VLESS_URL" --range "$custom_range" --timeout 8 --concurrent 20
+        python ../main.py --server-url "$VLESS_URL" --range "$custom_range" --timeout 8 --concurrent 20
         ;;
     *)
         echo "Invalid choice!"

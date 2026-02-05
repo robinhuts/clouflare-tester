@@ -23,20 +23,20 @@ set /p choice="Enter choice (1-5): "
 
 if "%choice%"=="1" (
     echo Running: Quick Test (100 IPs)
-    python main.py --server-url "%VLESS_URL%" --range "104.16.0.1-100" --timeout 8 --concurrent 20
+    python ..\main.py --server-url "%VLESS_URL%" --range "104.16.0.1-100" --timeout 8 --concurrent 20
 ) else if "%choice%"=="2" (
     echo Running: Medium Test (~250 IPs)
-    python main.py --server-url "%VLESS_URL%" --range "104.16.0.0/24" --timeout 8 --concurrent 30
+    python ..\main.py --server-url "%VLESS_URL%" --range "104.16.0.0/24" --timeout 8 --concurrent 30
 ) else if "%choice%"=="3" (
     echo Running: Large Test (~65k IPs - This will take a while!)
-    python main.py --server-url "%VLESS_URL%" --range "104.16.0.0/16" --timeout 5 --concurrent 50
+    python ..\main.py --server-url "%VLESS_URL%" --range "104.16.0.0/16" --timeout 5 --concurrent 50
 ) else if "%choice%"=="4" (
     echo Running: ALL Cloudflare IPs (This will take HOURS!)
-    python main.py --server-url "%VLESS_URL%" --range "@cloudflare-ips.txt" --timeout 5 --concurrent 100
+    python ..\main.py --server-url "%VLESS_URL%" --range "@cloudflare-ips.txt" --timeout 5 --concurrent 100
 ) else if "%choice%"=="5" (
     set /p custom_range="Enter IP range (e.g., 104.16.0.1-50): "
     echo Running: Custom range - !custom_range!
-    python main.py --server-url "%VLESS_URL%" --range "!custom_range!" --timeout 8 --concurrent 20
+    python ..\main.py --server-url "%VLESS_URL%" --range "!custom_range!" --timeout 8 --concurrent 20
 ) else (
     echo Invalid choice!
     goto end

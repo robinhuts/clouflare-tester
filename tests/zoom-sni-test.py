@@ -8,7 +8,7 @@ import argparse
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from xray_manager import XrayManager
 from ip_generator import IPGenerator
@@ -146,8 +146,13 @@ Examples:
     config_generator = XrayConfigGenerator()
     
     ip_configs = []
+    base_port = 10809
+    port_counter = 0
+
     for ip in ip_list:
-        xray_config = config_generator.generate_config_from_server(server_config, ip)
+        current_port = base_port + port_counter
+        port_counter += 1
+        xray_config = config_generator.generate_config_from_server(server_config, ip, local_port=current_port)
         ip_configs.append((ip, xray_config))
     
     print(f"{Fore.GREEN}Generated {len(ip_configs)} configurations\n")
