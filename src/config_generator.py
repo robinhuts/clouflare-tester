@@ -504,6 +504,194 @@ class XrayConfigGenerator:
         return config
 
 
+    def generate_batch_config(self, ip_list: list, server_config: dict, 
+                             dns_domain: str = "api.ovo.id", 
+                             use_domain_in_address: bool = True,
+                             base_port: int = 20000) -> dict:
+        """
+        Generate a SINGLE Xray config for testing multiple IPs simultaneously.
+        This creates multiple inbounds and outbounds mapped 1:1.
+        """
+        
+        # Base config
+        config = {
+            "log": {
+                "loglevel": "error"
+            },
+            "dns": {
+                "hosts": {},
+                "servers": ["1.1.1.1"]
+            },
+            "inbounds": [],
+            "outbounds": [],
+            "routing": {
+                "domainStrategy": "AsIs",
+                "rules": []
+            }
+        }
+        
+        # Add a direct outbound (always needed as fallback/default)
+        config["outbounds"].append({
+            "protocol": "freedom",
+            "tag": "direct",
+            "settings": {}
+        })
+        
+        # Determine protocol
+        protocol = server_config['protocol']
+        
+        # Iterate through IPs and create pairs of Inbound -> Outbound
+        for i, ip in enumerate(ip_list):
+            port = base_port + i
+            tag_in = f"socks-{i}"
+            tag_out = f"proxy-{i}"
+            
+            # 1. Create Inbound (SOCKS)
+            inbound = {
+                "listen": "127.0.0.1",
+                "port": port,
+                "protocol": "socks",
+                "settings": {
+                    "auth": "noauth",
+                    "udp": True
+                },
+                "tag": tag_in
+            }
+            config["inbounds"].append(inbound)
+            
+            # 2. Create Outbound (Proxy)
+            # Use logic similar to generate_zoom_style_config but adapted for loop
+            
+            # Decide address
+            address_to_use = dns_domain if use_domain_in_address else ip
+            
+            # Map DNS if needed (we map domain to THIS specific IP for THIS outbound??)
+            # PROBLEM: DNS hosts is global. We can't map 'api.ovo.id' to 20 different IPs at once globally.
+            # SOLVED: Xray 'sockopt' -> 'dialerProxy' or just rely on 'domainStrategy': 'UseIP' 
+            # BUT: If we use 'api.ovo.id' as address, Xray resolves it.
+            # If we map 'api.ovo.id' to '1.2.3.4' in DNS, it applies to ALL outbounds using that domain.
+            
+            # SOLUTION for Batch + SNI Bug:
+            # We must use the IP directly in the address field for the connectivity, 
+            # BUT we need to ensure the SNI/Host header represents the bug domain.
+            # generate_zoom_style_config does: address=ip (or mapped domain), sockopt.domainStrategy=UseIP.
+            
+            # If we pass IP as address:
+            # address = "104.16.0.1"
+            # sni = "point.natss.store" (Real Server)
+            # host = "point.natss.store" (Real Server)
+            # This is "Direct" mode.
+            
+            # If we want "Zoom Style" (SNI Bug):
+            # We rely on the fact that we send a request to a Cloudflare IP, 
+            # but the TLS SNI is the Real Server SNI? 
+            # NO. The "Bug" is that we connect to Cloudflare IP, but valid SNI (for firewall bypass) 
+            # is 'api.ovo.id', and INSIDE that TLS tunnel we speak VLESS/VMESS to Real Server.
+            
+            # Wait, let's look at `generate_zoom_style_config` again.
+            # It sets streamSettings.tlsSettings.serverName = server_config['sni'] (Real Server)
+            # It sets wsSettings.headers.Host = server_config.get('host') (Real Server)
+            # It sets address = dns_domain (Bug Domain) OR ip.
+            
+            # If we use batching, we cannot use a global DNS map for the Bug Domain if it needs to map to different IPs.
+            # So for batching, we MUST use the IP directly in the 'address' field.
+            # And we rely on 'api.ovo.id' being irrelevant for the *connection* destination IP, 
+            # UNLESS the bug requires the address to match the SNI at some layer?
+            
+            # Let's assume using IP directly in 'address' is fine, 
+            # provided the SNI/Host headers are correct for the VLESS connection.
+            
+            # However, some "Zero Quota" Tricks need the "Bug" to be the SNI visible to the IDP.
+            # If address="104.x.x.x", SNI="real-server.com", that might not pass.
+            # We need SNI="api.ovo.id" (Bug) on the outer layer? 
+            # No, Xray usually encrypts the VLESS traffic.
+            # If we are using WS+TLS, the outer SNI is `tlsSettings.serverName`.
+            
+            # If `generate_zoom_style_config` sets `serverName` to `server_config['sni']` (Real Server),
+            # then the "Bug" is just the IP/Domain resolution? 
+            
+            # Let's assume we can just use the IP in the address field for batching 
+            # and ignore the DNS mapping trick, OR use the `sockopt` `SO_ORIGINAL_DST` trick if supported.
+            
+            # Safest approach for Batch:
+            # Use IP as address.
+            # streamSettings same as single-mode.
+            # If the user selected "Bug/SNI Mode" where address MUST be the bug domain:
+            # Then Batching is hard because DNS is global.
+            # UNLESS we use unique fake domains for each IP? 
+            # e.g. "ip-1.api.ovo.id", "ip-2.api.ovo.id" and map them in DNS?
+            # Yes! That works.
+            
+            fake_domain = f"ip-{i}-{ip.replace('.', '-')}.{dns_domain}"
+            config["dns"]["hosts"][fake_domain] = [ip]
+            
+            # Now build Outbound
+            outbound = {
+                "protocol": protocol,
+                "settings": {},
+                "streamSettings": {},
+                "tag": tag_out
+            }
+            
+            # Protocol Settings
+            if protocol == "vless":
+                outbound["settings"] = {
+                    "vnext": [{
+                        "address": fake_domain,
+                        "port": server_config['port'],
+                        "users": [{
+                            "encryption": server_config.get('encryption', 'none'),
+                            "flow": "",
+                            "id": server_config['uuid']
+                        }]
+                    }]
+                }
+            elif protocol == "vmess":
+                outbound["settings"] = {
+                    "vnext": [{
+                        "address": fake_domain,
+                        "port": server_config['port'],
+                        "users": [{
+                            "id": server_config['uuid'],
+                            "alterId": server_config.get('aid', 0),
+                            "security": server_config.get('encryption', 'auto')
+                        }]
+                    }]
+                }
+            elif protocol == "trojan":
+                outbound["settings"] = {
+                    "servers": [{
+                        "address": fake_domain,
+                        "port": server_config['port'],
+                        "password": server_config['password']
+                    }]
+                }
+                
+            # Stream Settings (Clone from helper, but we need to inject it here)
+            # We can reuse the logic from _get_real_stream_settings but it's internal.
+            # Let's copy the essential stream logic here or call internal method if possible.
+            # _get_real_stream_settings depends on server_config, which is constant for all IPs.
+            stream_settings = self._get_real_stream_settings(server_config)
+            
+            # Ensure sockopt UseIP
+            if "sockopt" not in stream_settings:
+                stream_settings["sockopt"] = {}
+            stream_settings["sockopt"]["domainStrategy"] = "UseIP"
+            
+            outbound["streamSettings"] = stream_settings
+            
+            config["outbounds"].append(outbound)
+            
+            # 3. Create Routing Rule
+            rule = {
+                "type": "field",
+                "inboundTag": [tag_in],
+                "outboundTag": tag_out
+            }
+            config["routing"]["rules"].append(rule)
+            
+        return config
+
 if __name__ == "__main__":
     # Test the config generator
     print("Testing Xray Config Generator:")
@@ -523,3 +711,4 @@ if __name__ == "__main__":
     print(f"SNI: cloudflare.com")
     print(f"Config saved to: {output_file}")
     print(f"\nLocal SOCKS port: {generator.local_port}")
+

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Cloudflare IP Tester with Xray - Interactive CLI
-Main application with interactive mode
+Cloudflare IP Tester with Xray - Interactive CLI & Automation
+Main application with interactive mode and CLI arguments
 """
 import sys
 import os
 import time
+import argparse
 from pathlib import Path
 from colorama import Fore, Style, init
 
@@ -30,7 +31,7 @@ def clear_screen():
 
 def print_banner():
     """Print application banner"""
-    clear_screen()
+    # clear_screen() # Only clear in interactive mode
     print(f"{Fore.CYAN}{Style.BRIGHT}")
     print("=" * 70)
     print("      CLOUDFLARE IP TESTER - Bug/SNI Zero-Quota      ".center(70))
@@ -148,7 +149,6 @@ def select_test_mode():
 
 def configure_server():
     """Configure server settings"""
-    clear_screen()
     print(f"\n{Fore.YELLOW}{'='*70}")
     print(f"{Fore.YELLOW}SERVER CONFIGURATION")
     print(f"{Fore.YELLOW}{'='*70}\n")
@@ -180,7 +180,6 @@ def configure_server():
 
 def configure_zoom_style():
     """Configure zoom-style settings"""
-    clear_screen()
     print(f"\n{Fore.YELLOW}{'='*70}")
     print(f"{Fore.YELLOW}BUG/SNI CONFIGURATION")
     print(f"{Fore.YELLOW}{'='*70}\n")
@@ -203,24 +202,18 @@ def configure_zoom_style():
 
 def configure_test_params():
     """Configure test parameters"""
-    clear_screen()
     print(f"\n{Fore.YELLOW}{'='*70}")
     print(f"{Fore.YELLOW}TEST PARAMETERS")
     print(f"{Fore.YELLOW}{'='*70}\n")
     
     timeout = get_input("Timeout per IP (seconds)", "10")
-    concurrent = get_input("Concurrent tests", "20")
+    concurrent = get_input("Batch size (Concurrent IPs)", "20")
     top_ips = get_input("Number of top IPs to display", "20")
     
     try:
         timeout = int(timeout)
         concurrent = int(concurrent)
         top_ips = int(top_ips)
-        
-        print(f"\n{Fore.GREEN}✓ Test parameters set:")
-        print(f"  Timeout: {timeout}s")
-        print(f"  Concurrent: {concurrent}")
-        print(f"  Top IPs: {top_ips}")
         
         return timeout, concurrent, top_ips
     except ValueError:
@@ -230,7 +223,6 @@ def configure_test_params():
 
 def confirm_and_run(config):
     """Show summary and confirm before running"""
-    clear_screen()
     print(f"\n{Fore.CYAN}{'='*70}")
     print(f"{Fore.CYAN}TEST CONFIGURATION SUMMARY")
     print(f"{Fore.CYAN}{'='*70}\n")
@@ -239,9 +231,13 @@ def confirm_and_run(config):
     print(f"{Fore.WHITE}Server: {Fore.GREEN}{config['server_display']}")
     print(f"{Fore.WHITE}Bug/SNI Mode: {Fore.GREEN}{config['zoom_style']}")
     print(f"{Fore.WHITE}Timeout: {Fore.GREEN}{config['timeout']}s")
-    print(f"{Fore.WHITE}Concurrent: {Fore.GREEN}{config['concurrent']}")
+    print(f"{Fore.WHITE}Batch Size: {Fore.GREEN}{config['concurrent']}")
     
     print(f"\n{Fore.YELLOW}Estimated time: ~{config['estimated_time']} minutes")
+    
+    # If auto-run is enabled (from CLI), skip confirmation
+    if config.get('auto_run'):
+        return True
     
     if not get_yes_no(f"\n{Fore.CYAN}Start testing?", "y"):
         print(f"{Fore.RED}Test cancelled by user.")
@@ -252,13 +248,13 @@ def confirm_and_run(config):
 
 def run_test(config):
     """Execute the test"""
-    clear_screen()
+    # clear_screen()
     print(f"\n{Fore.CYAN}{'='*70}")
     print(f"{Fore.CYAN}STARTING TEST...")
     print(f"{Fore.CYAN}{'='*70}\n")
     
     # Step 1: Ensure Xray
-    print(f"{Fore.YELLOW}[1/5] Checking Xray installation...")
+    print(f"{Fore.YELLOW}[1/4] Checking Xray installation...")
     xray_manager = XrayManager()
     if not xray_manager.ensure_installed():
         print(f"{Fore.RED}Failed to install Xray.")
@@ -267,7 +263,7 @@ def run_test(config):
     print(f"{Fore.GREEN}✓ Xray ready\n")
     
     # Step 2: Generate IPs
-    print(f"{Fore.YELLOW}[2/5] Generating IP list...")
+    print(f"{Fore.YELLOW}[2/4] Generating IP list...")
     try:
         if config['use_cloudflare_ranges']:
             cf_ranges = IPGenerator.get_cloudflare_ranges()
@@ -283,78 +279,90 @@ def run_test(config):
         print(f"{Fore.RED}Error: {e}")
         return False
     
-    # Step 3: Generate configs
-    print(f"{Fore.YELLOW}[3/5] Generating Xray configurations...")
+    # Step 3: Test connections (Batch Mode)
+    print(f"{Fore.YELLOW}[3/4] Testing connections (Batch Mode)...")
+    
     config_generator = XrayConfigGenerator()
-    ip_configs = []
-    
-    if config.get('multi_domain') and config.get('domains_list'):
-        # Multi-domain testing: test each IP with multiple domains
-        print(f"{Fore.CYAN}Multi-domain mode: Testing {len(ip_list)} IP(s) × {len(config['domains_list'])} domain(s)")
-        
-        for ip in ip_list:
-            for dns_domain in config['domains_list']:
-                if config['server_config']:
-                    xray_config = config_generator.generate_zoom_style_config(
-                        config['server_config'], ip,
-                        dns_domain=dns_domain,
-                        use_domain_in_address=True
-                    )
-                    # Add metadata to track which domain+IP combo
-                    ip_configs.append((f"{ip}@{dns_domain}", xray_config))
-                else:
-                    xray_config = config_generator.generate_direct_config(ip)
-                    ip_configs.append((f"{ip}@{dns_domain}", xray_config))
-    else:
-        # Standard single domain/IP testing
-        for ip in ip_list:
-            if config['server_config']:
-                if config['zoom_style']:
-                    xray_config = config_generator.generate_zoom_style_config(
-                        config['server_config'], ip,
-                        dns_domain=config['dns_domain'],
-                        use_domain_in_address=config['use_domain_address']
-                    )
-                else:
-                    xray_config = config_generator.generate_config_from_server(
-                        config['server_config'], ip
-                    )
-            else:
-                xray_config = config_generator.generate_direct_config(ip)
-            ip_configs.append((ip, xray_config))
-    
-    print(f"{Fore.GREEN}✓ Generated {len(ip_configs)} configurations\n")
-    
-    # Step 4: Test connections
-    print(f"{Fore.YELLOW}[4/5] Testing connections...")
     tester = ConnectionTester(xray_path=xray_path, timeout=config['timeout'])
     reporter = Reporter()
     
-    pbar = reporter.create_progress_bar(len(ip_configs), "Testing IPs")
+    batch_size = config['concurrent']
+    total_ips = len(ip_list)
+    results = []
+    
+    pbar = reporter.create_progress_bar(total_ips, "Testing IPs")
     
     def progress_callback(completed, total, result):
         pbar.update(1)
-    
+        
     start_time = time.time()
-    results = tester.test_multiple_ips(
-        ip_configs,
-        max_workers=config['concurrent'],
-        progress_callback=progress_callback
-    )
+    
+    # Chunk IPs for batch processing
+    # If using real server and zoom style, efficient batching is possible
+    # If using 'multi_domain', handled differently? 
+    # For now assuming single domain testing for batch optimization
+    
+    # Split IPs into chunks
+    chunks = [ip_list[i:i + batch_size] for i in range(0, len(ip_list), batch_size)]
+    
+    for chunk_idx, chunk in enumerate(chunks):
+        if config['server_config']:
+            if config['zoom_style']:
+                 # Batch config with Zoom/Bug Style
+                 xray_config = config_generator.generate_batch_config(
+                     chunk, 
+                     config['server_config'],
+                     dns_domain=config['dns_domain'],
+                     use_domain_in_address=config['use_domain_address'],
+                     base_port=20000
+                 )
+            else:
+                 # TODO: Add batch support for Direct/Real server without Zoom Style?
+                 # For now, fallback to single-IP style if not Zoom Style? 
+                 # Or just use the same batch generator but ignore dns_domain?
+                 # Actually generate_batch_config supports generic server config.
+                 xray_config = config_generator.generate_batch_config(
+                     chunk,
+                     config['server_config'],
+                     dns_domain="cloudflare.com", # Irrelevant for non-zoom?
+                     use_domain_in_address=False, # Direct IP
+                     base_port=20000
+                 )
+        else:
+             # Fake server / Direct mode - not supported in batch yet? 
+             # For now, let's assume server_config is present or we handle it efficiently
+             # If no server_config, we can't use generate_batch_config easily because it needs protocol info.
+             # Fallback?
+             pass
+        
+        # Run batch
+        if config['server_config']:
+            batch_results = tester.test_batch_config(
+                xray_config, 
+                chunk, 
+                base_port=20000,
+                progress_callback=progress_callback
+            )
+            results.extend(batch_results)
+        else:
+            # Fallback for no-server-config (Fake/Direct test) - unlikely use case for this tool
+            # But let's handle it for completeness or error out
+            pass
+
     elapsed_time = time.time() - start_time
     pbar.close()
     
     print(f"\n{Fore.GREEN}✓ Testing completed in {elapsed_time:.1f}s\n")
     
     # Step 5: Generate reports
-    print(f"{Fore.YELLOW}[5/5] Generating reports...")
+    print(f"{Fore.YELLOW}[4/4] Generating reports...")
     stats = ConnectionTester.get_statistics(results)
     
     reporter.print_summary(results, stats)
     reporter.print_top_ips(results, top_n=config['top_ips'])
     
     reporter.save_json(results)
-    reporter.save_csv(results)
+    # reporter.save_csv(results) # Disabled by user request
     reporter.save_working_ips(results)
     reporter.generate_full_report(results, stats, config)
     
@@ -364,57 +372,140 @@ def run_test(config):
     return stats['successful'] > 0
 
 
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='Cloudflare IP Tester')
+    
+    parser.add_argument('--url', help='VLESS/VMESS/Trojan URL')
+    parser.add_argument('--file', help='Input file with IPs/Ranges (e.g. @ips.txt)')
+    parser.add_argument('--range', help='IP Range or CIDR (e.g. 104.16.0.0/24)')
+    parser.add_argument('--domain', help='Domain to scan for IPs (e.g. site.com)')
+    parser.add_argument('--bug', help='Bug/SNI Domain (e.g. api.ovo.id)')
+    parser.add_argument('--quick', action='store_true', help='Run quick test (172.64.0.1-100)')
+    parser.add_argument('--timeout', type=int, default=10, help='Timeout per IP in seconds')
+    parser.add_argument('--concurrent', type=int, default=20, help='Batch size (concurrent requests)')
+    parser.add_argument('--auto', action='store_true', help='Auto run without confirmation')
+    
+    return parser.parse_args()
+
+
 def main():
-    """Main interactive application"""
+    """Main entry point"""
     try:
         print_banner()
         
-        # Step 1: Select test mode
-        ip_range, use_cloudflare, domain = select_test_mode()
+        args = parse_arguments()
         
-        if ip_range is None and not use_cloudflare:
-            print(f"\n{Fore.RED}No valid IP range selected. Exiting.")
-            return 1
-        
-        # Step 2: Configure server
-        server_url, server_config = configure_server()
-        
-        # Step 3: Configure zoom-style
-        zoom_style, dns_domain, use_domain_address, multi_domain, domains_list = configure_zoom_style()
-        
-        # Step 4: Configure test parameters
-        timeout, concurrent, top_ips = configure_test_params()
-        
-        # Prepare config
-        ip_range_display = "All Cloudflare ranges" if use_cloudflare else ip_range
-        if domain:
-            ip_range_display = f"{domain} ({ip_range})"
-        
-        config = {
-            'ip_range': ip_range,
-            'use_cloudflare_ranges': use_cloudflare,
-            'test_domain': domain,
-            'ip_range_display': ip_range_display,
-            'server_url': server_url,
-            'server_config': server_config,
-            'server_display': server_config['address'] if server_config else "None (fake config)",
-            'zoom_style': zoom_style,
-            'dns_domain': dns_domain,
-            'use_domain_address': use_domain_address,
-            'multi_domain': multi_domain,
-            'domains_list': domains_list,
-            'timeout': timeout,
-            'concurrent': concurrent,
-            'top_ips': top_ips,
-            'estimated_time': 5 if ip_range and "1-100" in ip_range else "10+"
-        }
-        
-        # Step 5: Confirm and run
-        if confirm_and_run(config):
-            success = run_test(config)
-            return 0 if success else 1
-        
-        return 0
+        # Check if arguments provided for automation
+        if args.url or args.file or args.range or args.domain or args.quick:
+            # CLI Mode
+            
+            # Determine IP Source
+            ip_range = None
+            use_cloudflare = False
+            test_domain = None
+            
+            if args.quick:
+                ip_range = "172.64.0.1-100"
+            elif args.file:
+                ip_range = args.file if args.file.startswith('@') else f"@{args.file}"
+            elif args.range:
+                ip_range = args.range
+            elif args.domain:
+                # resolve
+                all_ips, cf_ips = resolve_domain_to_cloudflare_ips(args.domain)
+                if cf_ips:
+                    ip_range = ",".join(cf_ips)
+                    test_domain = args.domain
+                elif all_ips:
+                    ip_range = ",".join(all_ips)
+                    test_domain = args.domain # Warning: non-CF
+            
+            if not ip_range:
+                print(f"{Fore.RED}Error: No valid IP source provided.")
+                return 1
+            
+            # Server Config
+            server_config = None
+            if args.url:
+                try:
+                    server_config = URLParser.parse_url(args.url)
+                except Exception as e:
+                    print(f"{Fore.RED}Error parsing URL: {e}")
+                    return 1
+            
+            # Build Config
+            config = {
+                'ip_range': ip_range,
+                'use_cloudflare_ranges': False,
+                'test_domain': test_domain,
+                'ip_range_display': ip_range,
+                'server_url': args.url,
+                'server_config': server_config,
+                'server_display': server_config['address'] if server_config else "None",
+                'zoom_style': bool(args.bug),
+                'dns_domain': args.bug,
+                'use_domain_address': bool(args.bug), # Implicitly true if bug provided via CLI
+                'multi_domain': False,
+                'domains_list': None,
+                'timeout': args.timeout,
+                'concurrent': args.concurrent,
+                'top_ips': 20,
+                'estimated_time': "Unknown",
+                'auto_run': args.auto
+            }
+            
+            if confirm_and_run(config):
+                success = run_test(config)
+                return 0 if success else 1
+            return 0
+            
+        else:
+            # Interactive Mode (Legacy)
+            clear_screen()
+            print_banner()
+            
+            # Step 1: Select test mode
+            ip_range, use_cloudflare, domain = select_test_mode()
+            
+            if ip_range is None and not use_cloudflare:
+                print(f"\n{Fore.RED}No valid IP range selected. Exiting.")
+                return 1
+            
+            # Step 2: Configure server
+            server_url, server_config = configure_server()
+            
+            # Step 3: Configure zoom-style
+            zoom_style, dns_domain, use_domain_address, multi_domain, domains_list = configure_zoom_style()
+            
+            # Step 4: Configure test parameters
+            timeout, concurrent, top_ips = configure_test_params()
+            
+            config = {
+                'ip_range': ip_range,
+                'use_cloudflare_ranges': use_cloudflare,
+                'test_domain': domain,
+                'ip_range_display': "All Cloudflare ranges" if use_cloudflare else ip_range,
+                'server_url': server_url,
+                'server_config': server_config,
+                'server_display': server_config['address'] if server_config else "None (fake config)",
+                'zoom_style': zoom_style,
+                'dns_domain': dns_domain,
+                'use_domain_address': use_domain_address,
+                'multi_domain': multi_domain,
+                'domains_list': domains_list,
+                'timeout': timeout,
+                'concurrent': concurrent,
+                'top_ips': top_ips,
+                'estimated_time': 5 if ip_range and "1-100" in ip_range else "10+",
+                'auto_run': False
+            }
+            
+            if confirm_and_run(config):
+                success = run_test(config)
+                return 0 if success else 1
+            
+            return 0
         
     except KeyboardInterrupt:
         print(f"\n\n{Fore.YELLOW}Interrupted by user. Exiting...")

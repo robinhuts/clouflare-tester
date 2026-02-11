@@ -95,57 +95,92 @@ class Reporter:
     
     def save_json(self, results: List[Dict], filename: str = None) -> str:
         """Save results to JSON file"""
-        if not filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"results_{timestamp}.json"
-        
-        output_path = self.output_dir / filename
-        
-        with open(output_path, 'w') as f:
-            json.dump({
-                "timestamp": datetime.now().isoformat(),
-                "results": results
-            }, f, indent=2)
-        
-        print(f"{Fore.CYAN}Results saved to: {Fore.WHITE}{output_path}")
-        return str(output_path)
+        try:
+            if not filename:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"results_{timestamp}.json"
+            
+            output_path = self.output_dir / filename
+            
+            with open(output_path, 'w') as f:
+                json.dump({
+                    "timestamp": datetime.now().isoformat(),
+                    "results": results
+                }, f, indent=2)
+            
+            print(f"{Fore.CYAN}Results saved to: {Fore.WHITE}{output_path}")
+            return str(output_path)
+        except Exception as e:
+            print(f"{Fore.RED}Error saving JSON: {e}")
+            return None
     
     def save_csv(self, results: List[Dict], filename: str = None) -> str:
         """Save results to CSV file"""
-        if not filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"results_{timestamp}.csv"
-        
-        output_path = self.output_dir / filename
-        
-        with open(output_path, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['ip', 'status', 'latency_ms', 'error', 'timestamp'])
-            writer.writeheader()
-            writer.writerows(results)
-        
-        print(f"{Fore.CYAN}CSV saved to: {Fore.WHITE}{output_path}")
-        return str(output_path)
+        try:
+            if not filename:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"results_{timestamp}.csv"
+            
+            output_path = self.output_dir / filename
+            
+            if not results:
+                return None
+                
+            # Get all possible keys from all results to ensure we have all columns
+            keys = set()
+            for r in results:
+                keys.update(r.keys())
+            
+            fieldnames = list(keys)
+            # Ensure specific order if possible, remove duplicates
+            preferred_order = ['ip', 'status', 'latency_ms', 'error', 'timestamp']
+            ordered_fieldnames = []
+            
+            # Add preferred keys first if they exist
+            for k in preferred_order:
+                if k in fieldnames:
+                    ordered_fieldnames.append(k)
+            
+            # Add remaining keys
+            for k in fieldnames:
+                if k not in ordered_fieldnames:
+                    ordered_fieldnames.append(k)
+            
+            with open(output_path, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=ordered_fieldnames)
+                writer.writeheader()
+                writer.writerows(results)
+            
+            print(f"{Fore.CYAN}CSV saved to: {Fore.WHITE}{output_path}")
+            return str(output_path)
+        except Exception as e:
+            print(f"{Fore.RED}Error saving CSV: {e}")
+            return None
     
     def save_working_ips(self, results: List[Dict], filename: str = None) -> str:
         """Save only working IPs to text file (one IP per line)"""
-        if not filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"working_ips_{timestamp}.txt"
-        
-        output_path = self.output_dir / filename
-        
-        successful = [r for r in results if r['status'] == 'success']
-        sorted_results = sorted(successful, key=lambda x: x['latency_ms'])
-        
-        with open(output_path, 'w') as f:
-            for result in sorted_results:
-                ip = result['ip']
-                latency = result['latency_ms']
-                f.write(f"{ip} # {latency:.2f}ms\n")
-        
-        print(f"{Fore.GREEN}Working IPs saved to: {Fore.WHITE}{output_path}")
-        print(f"{Fore.GREEN}Total working IPs: {Fore.WHITE}{len(sorted_results)}")
-        return str(output_path)
+        try:
+            if not filename:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"working_ips_{timestamp}.txt"
+            
+            output_path = self.output_dir / filename
+            
+            successful = [r for r in results if r['status'] == 'success']
+            sorted_results = sorted(successful, key=lambda x: x['latency_ms'])
+            
+            with open(output_path, 'w') as f:
+                for result in sorted_results:
+                    ip = result['ip']
+                    latency = result['latency_ms']
+                    f.write(f"{ip} # {latency:.2f}ms\n")
+            
+            print(f"{Fore.GREEN}Working IPs saved to: {Fore.WHITE}{output_path}")
+            print(f"{Fore.GREEN}Total working IPs: {Fore.WHITE}{len(sorted_results)}")
+            return str(output_path)
+        except Exception as e:
+            print(f"{Fore.RED}Error saving working IPs: {e}")
+            return None
     
     def generate_full_report(self, results: List[Dict], stats: Dict, 
                            config: Dict) -> str:

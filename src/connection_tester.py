@@ -192,7 +192,111 @@ class ConnectionTester:
         return stats
 
 
+    def test_batch_config(self, config: dict, ip_list: list, base_port: int, progress_callback=None) -> list:
+        """
+        Test a batch of IPs using a single Xray process
+        """
+        results = []
+        
+        # Create temporary config file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(config, f)
+            config_file = f.name
+            
+        xray_process = None
+        
+        try:
+            # Start Xray process
+            xray_process = subprocess.Popen(
+                [self.xray_path, "run", "-c", config_file],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            
+            # Wait for Xray to start
+            time.sleep(1.5)
+            
+            # Check if Xray is still running
+            if xray_process.poll() is not None:
+                # Process died
+                stderr = xray_process.stderr.read().decode()
+                print(f"{Fore.RED}Xray failed to start: {stderr}")
+                return [{"ip": ip, "status": "failed", "error": "Xray failed to start"} for ip in ip_list]
+                
+            # Define worker function for thread pool
+            def check_ip(index, ip):
+                port = base_port + index
+                result = {
+                    "ip": ip,
+                    "status": "failed",
+                    "latency_ms": None,
+                    "error": None,
+                    "timestamp": time.time()
+                }
+                
+                start_time = time.time()
+                proxies = {
+                    'http': f'socks5h://127.0.0.1:{port}',
+                    'https': f'socks5h://127.0.0.1:{port}'
+                }
+                
+                try:
+                    response = requests.get(
+                        self.test_url,
+                        proxies=proxies,
+                        timeout=self.timeout,
+                        allow_redirects=False
+                    )
+                    
+                    latency = (time.time() - start_time) * 1000
+                    
+                    if response.status_code in [200, 204]:
+                        result["status"] = "success"
+                        result["latency_ms"] = round(latency, 2)
+                    else:
+                        result["error"] = f"HTTP {response.status_code}"
+                        
+                except requests.exceptions.Timeout:
+                    result["error"] = "Timeout"
+                except Exception as e:
+                    result["error"] = str(e)
+                    
+                return result
+
+            # Run checks concurrently
+            with ThreadPoolExecutor(max_workers=min(len(ip_list), 50)) as executor:
+                future_to_ip = {
+                    executor.submit(check_ip, i, ip): ip 
+                    for i, ip in enumerate(ip_list)
+                }
+                
+                for future in as_completed(future_to_ip):
+                    result = future.result()
+                    results.append(result)
+                    
+                    if progress_callback:
+                        progress_callback(1, len(ip_list), result)
+                        
+        finally:
+            # Cleanup Xray
+            if xray_process:
+                xray_process.terminate()
+                try:
+                    xray_process.wait(timeout=2)
+                except:
+                    xray_process.kill()
+                    
+            # Remove temp config
+            try:
+                Path(config_file).unlink()
+            except:
+                pass
+                
+        return results
+
 if __name__ == "__main__":
     # This is just a structure test, won't work without actual Xray
     print("Connection Tester module loaded successfully")
     print("This module requires Xray-core to be installed")
+
