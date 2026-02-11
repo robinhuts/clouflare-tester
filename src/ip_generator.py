@@ -138,7 +138,25 @@ class IPGenerator:
             "131.0.72.0/22"
         ]
 
-
+    @staticmethod
+    def get_line_ranges() -> List[str]:
+        """
+        Get IP ranges associated with LINE Corporation & NAVER Cloud (AS23576, AS38631)
+        """
+        return [
+            # LINE Corporation (AS38631)
+            "147.92.224.0/19",
+            "119.235.224.0/24",
+            "119.235.232.0/24",
+            "203.104.144.0/21",
+            "103.2.30.0/23",
+            "204.237.244.0/23",
+            
+            # NAVER Cloud (AS23576) - Often used by LINE services
+            "110.234.64.0/18",
+            "175.158.0.0/19",
+            "61.97.176.0/20"
+        ]
 if __name__ == "__main__":
     # Test the generator
     print("Testing IP Generator:")

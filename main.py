@@ -77,8 +77,9 @@ def select_test_mode():
     print(f"{Fore.GREEN}3.{Fore.WHITE} Domain Scan (Find IPs for specific domain)")
     print(f"{Fore.GREEN}4.{Fore.WHITE} Load from File (cloudflare-ips.txt)")
     print(f"{Fore.GREEN}5.{Fore.WHITE} ALL Ranges (Hours!)")
+    print(f"{Fore.GREEN}6.{Fore.WHITE} LINE/NAVER Ranges (Special)")
     
-    choice = get_input("\nSelect mode [1-5]", "1", ["1", "2", "3", "4", "5"])
+    choice = get_input("\nSelect mode [1-6]", "1", ["1", "2", "3", "4", "5", "6"])
     
     if choice == "1":
         # Quick test with small range
@@ -91,7 +92,7 @@ def select_test_mode():
         print(f"  - Range: 172.64.0.1-100")
         print(f"  - Single IP: 104.16.0.1")
         ip_range = get_input("\nEnter IP range")
-        return ip_range, False, None
+        return ip_range, False, False, None
     elif choice == "3":
         # Test domain
         print(f"\n{Fore.YELLOW}Examples:")
@@ -110,41 +111,46 @@ def select_test_mode():
                     print(f"  - {ip}")
                 
                 if len(cf_ips) == 1:
-                    return cf_ips[0], False, domain
+                    return cf_ips[0], False, False, domain
                 else:
                     # Create range from multiple IPs
                     ip_list = ",".join(cf_ips)
-                    return ip_list, False, domain
+                    return ip_list, False, False, domain
             else:
                 print(f"{Fore.YELLOW}⚠ No Cloudflare IPs found for {domain}")
                 if all_ips:
                     print(f"{Fore.YELLOW}Found {len(all_ips)} non-Cloudflare IP(s): {all_ips}")
                     if get_yes_no("Test these IPs anyway?", "n"):
-                        return ",".join(all_ips), False, domain
+                        return ",".join(all_ips), False, False, domain
                 
                 if get_yes_no("Try another domain?", "y"):
                     return select_test_mode()
-                return None, False, None
+                return None, False, False, None
                 
         except Exception as e:
             print(f"{Fore.RED}✗ Error resolving domain: {e}")
             if get_yes_no("Try again?", "y"):
                 return select_test_mode()
-            return None, False, None
+            return None, False, False, None
             
     elif choice == "4":
         # From file
         filename = get_input("Enter filename", "@cloudflare-ips.txt")
         if not filename.startswith("@"):
             filename = "@" + filename
-        return filename, False, None
-    else:
+        return filename, False, False, None
+    elif choice == "5":
         # All Cloudflare ranges
         if get_yes_no(f"\n{Fore.YELLOW}WARNING: This will test thousands of IPs! Continue?", "n"):
-            return None, True, None
+            return None, True, False, None
         else:
             print(f"{Fore.RED}Cancelled. Returning to mode selection...")
             return select_test_mode()
+    else:
+        # LINE Ranges
+        print(f"\n{Fore.CYAN}Using LINE/NAVER IP ranges...")
+        return None, False, True, None
+
 
 
 def configure_server():
@@ -190,7 +196,32 @@ def configure_zoom_style():
         return False, None, True, False, None
     
     # Single Bug/SNI target input
-    dns_domain = get_input("Enter Bug/SNI target (e.g. api.ovo.id, support.zoom.us)", "api.ovo.id")
+    print(f"\n{Fore.CYAN}Recommended Bug/SNI domains:")
+    print("  1. investor.spotify.com (Music)")
+    print("  2. www.udemy.com (Education)")
+    print("  3. support.zoom.us (Conference)")
+    print("  4. web.whatsapp.com (Chat)")
+    print("  5. Custom")
+    
+    bug_choice = get_input("Select Bug/SNI or type custom", "1")
+    
+    if bug_choice == "1":
+        dns_domain = "investor.spotify.com"
+    elif bug_choice == "2":
+        dns_domain = "www.udemy.com"
+    elif bug_choice == "3":
+        dns_domain = "support.zoom.us"
+    elif bug_choice == "4":
+        dns_domain = "web.whatsapp.com"
+    elif bug_choice == "5":
+        dns_domain = get_input("Enter Bug/SNI target", "investor.spotify.com")
+    else:
+        # Assume user typed domain directly if not 1-5
+        if "." in bug_choice:
+            dns_domain = bug_choice
+        else:
+            dns_domain = "investor.spotify.com"
+            
     use_domain_address = get_yes_no("Use domain in address field?", "y")
     
     print(f"\n{Fore.GREEN}✓ Bug/SNI mode enabled:")
@@ -265,7 +296,13 @@ def run_test(config):
     # Step 2: Generate IPs
     print(f"{Fore.YELLOW}[2/4] Generating IP list...")
     try:
-        if config['use_cloudflare_ranges']:
+        if config.get('use_line_ranges'):
+            line_ranges = IPGenerator.get_line_ranges()
+            all_ips = []
+            for ip_range in line_ranges:
+                all_ips.extend(IPGenerator.parse_range(ip_range))
+            ip_list = all_ips    
+        elif config['use_cloudflare_ranges']:
             cf_ranges = IPGenerator.get_cloudflare_ranges()
             all_ips = []
             for ip_range in cf_ranges:
@@ -382,6 +419,7 @@ def parse_arguments():
     parser.add_argument('--domain', help='Domain to scan for IPs (e.g. site.com)')
     parser.add_argument('--bug', help='Bug/SNI Domain (e.g. api.ovo.id)')
     parser.add_argument('--quick', action='store_true', help='Run quick test (172.64.0.1-100)')
+    parser.add_argument('--line', action='store_true', help='Use LINE/NAVER IP Ranges')
     parser.add_argument('--timeout', type=int, default=10, help='Timeout per IP in seconds')
     parser.add_argument('--concurrent', type=int, default=20, help='Batch size (concurrent requests)')
     parser.add_argument('--auto', action='store_true', help='Auto run without confirmation')
@@ -397,16 +435,20 @@ def main():
         args = parse_arguments()
         
         # Check if arguments provided for automation
-        if args.url or args.file or args.range or args.domain or args.quick:
+        if args.url or args.file or args.range or args.domain or args.quick or args.line:
             # CLI Mode
             
             # Determine IP Source
             ip_range = None
             use_cloudflare = False
+            use_line = False
             test_domain = None
             
             if args.quick:
                 ip_range = "172.64.0.1-100"
+            elif args.line:
+                use_line = True
+                ip_range = "LINE Ranges" # Placeholder
             elif args.file:
                 ip_range = args.file if args.file.startswith('@') else f"@{args.file}"
             elif args.range:
@@ -421,7 +463,7 @@ def main():
                     ip_range = ",".join(all_ips)
                     test_domain = args.domain # Warning: non-CF
             
-            if not ip_range:
+            if not ip_range and not use_line:
                 print(f"{Fore.RED}Error: No valid IP source provided.")
                 return 1
             
@@ -438,6 +480,7 @@ def main():
             config = {
                 'ip_range': ip_range,
                 'use_cloudflare_ranges': False,
+                'use_line_ranges': use_line,
                 'test_domain': test_domain,
                 'ip_range_display': ip_range,
                 'server_url': args.url,
@@ -466,9 +509,9 @@ def main():
             print_banner()
             
             # Step 1: Select test mode
-            ip_range, use_cloudflare, domain = select_test_mode()
+            ip_range, use_cloudflare, use_line, domain = select_test_mode()
             
-            if ip_range is None and not use_cloudflare:
+            if ip_range is None and not use_cloudflare and not use_line:
                 print(f"\n{Fore.RED}No valid IP range selected. Exiting.")
                 return 1
             
@@ -484,8 +527,9 @@ def main():
             config = {
                 'ip_range': ip_range,
                 'use_cloudflare_ranges': use_cloudflare,
+                'use_line_ranges': use_line,
                 'test_domain': domain,
-                'ip_range_display': "All Cloudflare ranges" if use_cloudflare else ip_range,
+                'ip_range_display': "All Cloudflare ranges" if use_cloudflare else ("LINE Ranges" if use_line else ip_range),
                 'server_url': server_url,
                 'server_config': server_config,
                 'server_display': server_config['address'] if server_config else "None (fake config)",
